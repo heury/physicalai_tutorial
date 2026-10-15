@@ -47,6 +47,29 @@ python ch01/agent_3lines.py
 MUJOCO_GL=egl python ch03/pick_and_place.py
 ```
 
+`ch02/drop_cube.py`는 화면(`DISPLAY`)이 없는 Linux에서 EGL을 자동 선택합니다.
+사용자가 설정한 `MUJOCO_GL` 값은 유지합니다. Ubuntu/Debian에서 EGL 로더가
+없다면 `sudo apt-get install libegl1`로 설치하세요. GPU 드라이버도 EGL을 지원해야 합니다.
+GPU 없이 CPU로 렌더링하려면 `sudo apt-get install libosmesa6` 후
+`MUJOCO_GL=osmesa uv run ch02/drop_cube.py`로 실행할 수 있습니다.
+영상이 필요 없으면 `uv run ch02/drop_cube.py --no-video`로 OpenGL 없이 실행합니다.
+
+6부 ACT 학습 전에 로컬 시연 데이터셋을 먼저 생성해야 합니다. 다음 명령은 저장소
+루트에서 실행하세요.
+
+```bash
+MUJOCO_GL=egl uv run ch06/record_demos.py --episodes 50
+uv run ch06/inspect_dataset.py --root outputs/datasets/so101_pickplace_sim --repo-id physicalai/so101_pickplace_sim
+```
+
+그다음 `uv run lerobot-train --dataset.repo_id=physicalai/so101_pickplace_sim
+--dataset.root=outputs/datasets/so101_pickplace_sim ...`으로 학습합니다.
+여기서 `physicalai/so101_pickplace_sim`은 생성할 로컬 데이터셋의 식별자입니다.
+로컬 데이터가 없거나 불완전하면 LeRobot이 같은 ID를 Hub에서 조회하면서
+`Repository Not Found`가 발생할 수 있습니다. 먼저 `meta/info.json`, 데이터 및 영상이
+생성되었는지 확인하세요. `--policy.push_to_hub=false`는 학습 정책 업로드 설정이며,
+데이터셋 다운로드를 막는 옵션은 아닙니다.
+
 학습 명령(ACT, SmolVLA)은 `scripts_train_all.sh` 와 `scripts_ch08.sh` 안에 있습니다. 6부·7부 학습에는 NVIDIA GPU(VRAM 8 GB 이상)가 필요하며, 책의 부록 D에 GPU가 없을 때의 경로가 있습니다.
 
 ## GPU가 없다면 (Colab)

@@ -5,7 +5,7 @@ Plane(바닥) + 책상(box) + 블록(cube) + 공(sphere)을 만들고,
 화면(GUI) 없이도 동작하도록 Headless 렌더링으로 영상을 저장합니다.
 
 실행:
-    MUJOCO_GL=egl python ch02/drop_cube.py            # Linux + NVIDIA
+    uv run ch02/drop_cube.py --gravity -1.62          # 화면 없는 Linux에서는 EGL 자동 선택
     python ch02/drop_cube.py --no-video               # 렌더링 없이 숫자만 확인
 
 옵션:
@@ -16,8 +16,8 @@ Plane(바닥) + 책상(box) + 블록(cube) + 공(sphere)을 만들고,
 
 import argparse
 import os
+import sys
 
-import mujoco
 import numpy as np
 
 WORLD_XML = """
@@ -65,6 +65,14 @@ def main():
     ap.add_argument("--frame", default="outputs/ch02_drop_cube_last.png")
     args = ap.parse_args()
 
+    # MuJoCo는 import 시 렌더링 백엔드를 결정한다.
+    if args.no_video:
+        os.environ["MUJOCO_GL"] = "disable"
+    elif sys.platform.startswith("linux") and not os.environ.get("DISPLAY"):
+        os.environ.setdefault("MUJOCO_GL", "egl")
+
+    import mujoco
+
     xml = WORLD_XML.format(mass=args.mass, friction=args.friction, gravity=args.gravity)
     model = mujoco.MjModel.from_xml_string(xml)
     data = mujoco.MjData(model)
@@ -93,6 +101,9 @@ def main():
             renderer.update_scene(data, camera="side")
             frames.append(renderer.render().copy())
         mujoco.mj_step(model, data)
+
+    if renderer is not None:
+        renderer.close()
 
     if frames:
         import imageio

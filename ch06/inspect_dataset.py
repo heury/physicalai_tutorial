@@ -11,6 +11,7 @@
 
 import argparse
 import os
+from pathlib import Path
 
 os.environ.setdefault("SVT_LOG", "0")          # 영상 인코더(SVT-AV1)의 장황한 로그 끄기
 
@@ -25,6 +26,12 @@ def main():
     ap.add_argument("--root", default=None, help="로컬 데이터셋 폴더 (없으면 Hub에서 받음)")
     ap.add_argument("--episode", type=int, default=0)
     args = ap.parse_args()
+    if args.root and not (Path(args.root) / "meta" / "info.json").is_file():
+        ap.error(
+            f"로컬 데이터셋 메타데이터가 없습니다: {Path(args.root) / 'meta' / 'info.json'}. "
+            "저장소 루트에서 실행 중인지 확인하고, 먼저 ch06/record_demos.py로 "
+            "같은 --root와 --repo-id에 시연 데이터를 생성하세요."
+        )
     os.makedirs(OUT, exist_ok=True)
 
     from lerobot.datasets import LeRobotDataset, LeRobotDatasetMetadata
