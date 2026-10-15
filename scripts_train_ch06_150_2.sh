@@ -1,0 +1,20 @@
+OMP_NUM_THREADS=1 \
+MKL_NUM_THREADS=1 \
+ACCELERATE_MIXED_PRECISION=bf16 \
+uv run lerobot-train \
+  --dataset.repo_id=physicalai/so101_pickplace_sim_150 \
+  --dataset.root=outputs/datasets/so101_pickplace_sim_150 \
+  --policy.type=act \
+  --policy.chunk_size=50 \
+  --policy.n_action_steps=50 \
+  --policy.device=cuda \
+  --policy.use_amp=false \
+  --policy.push_to_hub=false \
+  --output_dir=outputs/train/act_so101_150_10k \
+  --job_name=act_so101_150_10k \
+  --steps=10000 \
+  --batch_size=128 \
+  --num_workers=4 \
+  --save_freq=2500 \
+  --log_freq=100 \
+  --wandb.enable=false
