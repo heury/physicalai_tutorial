@@ -19,6 +19,7 @@ dependencies = [
     "gymnasium>=1.0",
     "stable-baselines3>=2.4",
     "lerobot[dataset,training,smolvla]>=0.6",
+    "openai>=3.31.0",
 ]
 
 # 9부에서만 필요합니다. 본편 1~8부는 이것 없이 전부 돌아갑니다.

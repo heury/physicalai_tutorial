@@ -71,6 +71,8 @@ def main():
     ap.add_argument("--repo-id", default="physicalai/so101_pickplace_sim")
     ap.add_argument("--episodes", type=int, default=20)
     ap.add_argument("--seed", type=int, default=1000)
+    ap.add_argument("--results-json", default=None, help="회차별 결과와 성공률을 JSON으로 저장")
+    ap.add_argument("--max-seconds", type=float, default=12.0)
     ap.add_argument("--video", action="store_true")
     ap.add_argument("--out", default="outputs/ch06_act_eval.mp4")
     ap.add_argument("--cube", type=float, nargs=2, default=None, help="블록 위치 고정 (8-2)")
@@ -79,6 +81,8 @@ def main():
     ap.add_argument("--ensemble", type=float, default=None, help="Temporal Ensembling 계수 (예: 0.01). 매 스텝 재추론 + 가중 평균")
     ap.add_argument("--top-camera", default="top", help="데이터셋을 기록할 때 쓴 위 카메라 이름")
     args = ap.parse_args()
+    if args.episodes < 1 or args.max_seconds <= 0:
+        ap.error("episodes와 max-seconds는 양수여야 합니다.")
     import json
     scene_kw = json.loads(args.scene_kw) if args.scene_kw else None
 
@@ -87,6 +91,8 @@ def main():
     from lerobot.policies.act import ACTPolicy
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
     policy = ACTPolicy.from_pretrained(args.checkpoint).to(device).eval()
     # 체크포인트 폴더에 정규화 통계(전처리기·후처리기)가 함께 저장되어 있으므로 보통은 그대로 쓴다
     stats = LeRobotDatasetMetadata(args.repo_id, root=args.dataset_root).stats if args.dataset_root else None
@@ -105,15 +111,32 @@ def main():
           f"temporal_ensemble_coeff {policy.config.temporal_ensemble_coeff}")
 
     rng = np.random.default_rng(args.seed)
-    results, t0 = [], time.time()
+    results, records, t0 = [], [], time.time()
     for i in range(args.episodes):
         cube = tuple(args.cube) if args.cube else random_cube(rng)
         ok, ts = run_episode(policy, preprocess, postprocess, device, cube,
-                             video=(args.video and i == 0), out=args.out, scene_kw=scene_kw, top_camera=args.top_camera)
+                             max_seconds=args.max_seconds, video=(args.video and i == 0),
+                             out=args.out, scene_kw=scene_kw, top_camera=args.top_camera)
         results.append(ok)
+        records.append({"episode": i + 1, "cube_xy": list(cube), "success": bool(ok),
+                        "time_to_success_seconds": ts})
         print(f"episode {i + 1:2d}  블록 ({cube[0]:+.3f}, {cube[1]:+.3f})  → "
-              f"{'성공 (%.1f s)' % ts if ok else '실패'}   ({time.time() - t0:4.0f} s)")
+              f"{'성공 (%.1f s)' % ts if ok else '실패'}   ({time.time() - t0:4.0f} s)", flush=True)
     print(f"\n성공률 {sum(results)}/{len(results)} = {100 * sum(results) / len(results):.0f}%")
+    if args.results_json:
+        from pathlib import Path
+        path = Path(args.results_json)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({
+            "checkpoint": args.checkpoint, "device": str(device), "seed": args.seed,
+            "episodes": records, "successes": sum(results), "episode_count": len(results),
+            "success_rate": sum(results) / len(results), "elapsed_seconds": time.time() - t0,
+            "max_seconds": args.max_seconds, "top_camera": args.top_camera,
+            "scene_kw": scene_kw or {}, "task": TASK,
+            "chunk_size": policy.config.chunk_size, "n_action_steps": policy.config.n_action_steps,
+            "temporal_ensemble_coeff": policy.config.temporal_ensemble_coeff,
+            "success_definition": "ch03.pick_and_place.is_in_box; first entry within episode",
+        }, indent=2))
 
 
 if __name__ == "__main__":

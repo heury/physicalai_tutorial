@@ -7,6 +7,7 @@ task 문장에 그 색이 들어갑니다. SmolVLA가 문장의 색을 보고 �
 
 실행:
     MUJOCO_GL=egl python ch08/record_multicolor.py --episodes 60
+    MUJOCO_GL=egl python ch08/record_multicolor.py --episodes 150 --retry-failed
 """
 
 import argparse
@@ -70,9 +71,12 @@ def main():
     ap.add_argument("--root", default="outputs/datasets/so101_multicolor_sim")
     ap.add_argument("--repo-id", default="physicalai/so101_multicolor_sim")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--retry-failed", action="store_true", help="성공한 시연이 --episodes개가 될 때까지 실패를 재시도 (최대 10배 시도)")
     ap.add_argument("--top-camera", default="top", help="위 카메라 이름 (top 또는 top_zoom)")
     ap.add_argument("--overwrite", action="store_true", help="--root 폴더가 이미 있으면 지우고 새로 기록")
     args = ap.parse_args()
+    if args.episodes < 1:
+        ap.error("episodes는 양수여야 합니다.")
     prepare_root(args.root, args.overwrite)
 
     from lerobot.datasets import LeRobotDataset
@@ -87,8 +91,11 @@ def main():
                                     root=args.root, robot_type="so101_sim", use_videos=True)
     rng = np.random.default_rng(args.seed)
     t0, saved, failed = time.time(), {c: 0 for c in COLORS}, 0
-    for ep in range(args.episodes):
-        color = COLORS[ep % 3]
+    max_attempts = args.episodes * (10 if args.retry_failed else 1)
+    for ep in range(max_attempts):
+        if args.retry_failed and sum(saved.values()) >= args.episodes:
+            break
+        color = COLORS[(sum(saved.values()) if args.retry_failed else ep) % 3]
         layout = random_layout(rng)
         robot = make_robot(layout, dataset=dataset, task=TASK_FMT.format(color=color), top_camera=args.top_camera)
         ok = scripted_pick_color(robot, color)
@@ -100,9 +107,11 @@ def main():
         else:
             dataset.clear_episode_buffer()
             failed += 1
-        print(f"episode {ep + 1:3d}/{args.episodes}  {color:<6s} {n:3d} frames  {'저장' if ok else '실패→버림'}  ({time.time() - t0:5.0f} s)")
+        print(f"attempt {ep + 1:3d}/{max_attempts}  {color:<6s} {n:3d} frames  {'저장' if ok else '실패→버림'}  저장 {sum(saved.values())}/{args.episodes}  ({time.time() - t0:5.0f} s)", flush=True)
     dataset.finalize()
     print(f"\n완료: 저장 {saved}, 실패 {failed}, 총 {time.time() - t0:.0f} 초, 프레임 {dataset.meta.total_frames}")
+    if args.retry_failed and sum(saved.values()) < args.episodes:
+        raise RuntimeError(f"최대 시도 횟수 내에 성공 시연 {args.episodes}개를 채우지 못했습니다.")
 
 
 if __name__ == "__main__":

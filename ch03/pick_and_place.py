@@ -8,6 +8,7 @@ Approach → Grasp → Lift → Move → Place의 다섯 단계를 상태 기계
     MUJOCO_GL=egl python ch03/pick_and_place.py
     python ch03/pick_and_place.py --no-video --cube 0.20 0.08 --box 0.05 0.22
     python ch03/pick_and_place.py --no-video --trials 10      # 블록 위치를 무작위로 바꿔 10회
+    MUJOCO_GL=egl python ch03/pick_and_place.py --trials 10   # 회차별 영상 + 전체 영상
 """
 
 import argparse
@@ -89,10 +90,13 @@ def main():
     ap.add_argument("--cube", type=float, nargs=2, default=[0.24, 0.0])
     ap.add_argument("--box", type=float, nargs=2, default=[0.05, 0.22])
     ap.add_argument("--trials", type=int, default=1, help="2 이상이면 블록 위치를 무작위로 바꿔 반복")
-    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--seed", type=int, default=None,
+                    help="생략하면 실행마다 새 위치를 생성. 정수를 지정하면 위치 재현")
     ap.add_argument("--no-video", action="store_true")
     ap.add_argument("--out", default="outputs/ch03_pick_and_place.mp4")
     args = ap.parse_args()
+    if args.trials < 1:
+        ap.error("--trials는 1 이상이어야 합니다.")
 
     if args.trials == 1:
         robot = SO101Sim(cube_pos=tuple(args.cube), box_pos=tuple(args.box),
@@ -103,16 +107,53 @@ def main():
         robot.close()
         return
 
+    if args.seed is None:
+        args.seed = int(np.random.SeedSequence().generate_state(1)[0])
+    print(f"Random seed: {args.seed}", flush=True)
     rng = np.random.default_rng(args.seed)
     results = []
-    for i in range(args.trials):
-        # 로봇 앞쪽 부채꼴 영역(반지름 0.17~0.27, 각도 ±40도)에서 무작위 위치
-        r, th = rng.uniform(0.17, 0.27), rng.uniform(-0.7, 0.7)
-        cube = (r * np.cos(th), r * np.sin(th))
-        robot = SO101Sim(cube_pos=cube, box_pos=tuple(args.box), render=False)
-        ok = pick_and_place(robot, verbose=False)
-        results.append(ok)
-        print(f"trial {i + 1:2d}  블록 ({cube[0]:+.3f}, {cube[1]:+.3f})  → {'성공' if ok else '실패'}")
+    records = []
+    writer = None
+    if not args.no_video:
+        import imageio
+
+        os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
+        writer = imageio.get_writer(args.out, fps=30)
+    try:
+        for i in range(args.trials):
+            # 로봇 앞쪽 부채꼴 영역(반지름 0.17~0.27, 각도 ±40도)에서 무작위 위치
+            r, th = rng.uniform(0.17, 0.27), rng.uniform(-0.7, 0.7)
+            cube = (r * np.cos(th), r * np.sin(th))
+            print(f"trial {i + 1:2d}/{args.trials} 시작  블록 ({cube[0]:+.3f}, {cube[1]:+.3f})", flush=True)
+            robot = SO101Sim(cube_pos=cube, box_pos=tuple(args.box),
+                             render=not args.no_video, camera="fixed")
+            try:
+                ok = pick_and_place(robot, verbose=False)
+                results.append(ok)
+                trial_path = None
+                if writer is not None:
+                    stem, ext = os.path.splitext(args.out)
+                    trial_path = f"{stem}_trial_{i + 1:02d}{ext}"
+                    robot.save_video(trial_path)
+                    for frame in robot.frames:
+                        writer.append_data(frame)
+                records.append({"trial": i + 1, "initial_cube_xy": list(cube),
+                                "final_cube_xyz": robot.cube_pos().tolist(),
+                                "success": bool(ok), "video": trial_path})
+                print(f"trial {i + 1:2d}  → {'성공' if ok else '실패'}", flush=True)
+            finally:
+                robot.close()
+    finally:
+        if writer is not None:
+            writer.close()
+    if writer is not None:
+        import json
+
+        report_path = os.path.splitext(args.out)[0] + "_results.json"
+        with open(report_path, "w", encoding="utf-8") as f:
+            json.dump({"seed": args.seed, "box_xy": args.box, "trials": records},
+                      f, ensure_ascii=False, indent=2)
+        print(f"전체 영상: {args.out}, 회차별 결과: {report_path}")
     print(f"\n성공률 {sum(results)}/{len(results)} = {100 * sum(results) / len(results):.0f}%")
 
 

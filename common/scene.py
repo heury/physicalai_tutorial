@@ -36,7 +36,7 @@ SCENE_TEMPLATE = """
     <body name="cube" pos="{cube_x} {cube_y} 0.015">
       <freejoint name="cube_free"/>
       <geom name="cube_geom" type="box" size="0.015 0.015 0.015" mass="0.02"
-            rgba="0.9 0.1 0.1 1" friction="1.5 0.005 0.0001" condim="4"/>
+            rgba="{cube_rgba}" friction="1.5 0.005 0.0001" condim="4"/>
     </body>
 {extra_cubes}
 
@@ -78,11 +78,12 @@ EXTRA_CUBE_TEMPLATE = """
 
 def build_scene(cube_pos=(0.25, 0.0), box_pos=(0.0, 0.25), extra_cubes=None,
                 light_pos=(0.0, 0.0, 1.5), light_diffuse=(0.6, 0.6, 0.6), floor_rgba=(1, 1, 1, 1),
-                top_cam_pos=(0.2, 0.0, 0.8)) -> str:
+                top_cam_pos=(0.2, 0.0, 0.8), cube_rgba=(0.9, 0.1, 0.1, 1)) -> str:
     """장면 XML 파일을 so101.xml 옆에 쓰고 경로를 돌려줍니다.
 
     extra_cubes: [("green", (x, y)), ("yellow", (x, y))]처럼 추가 블록 (8부).
     light_pos / light_diffuse / floor_rgba / top_cam_pos: 8-3의 환경 변화 실험용.
+    cube_rgba: 주 블록의 색상 (기본 빨강). 물리 속성은 동일하게 유지됩니다.
 
     파일 이름에 내용의 해시를 붙여, 같은 장면은 같은 파일을 재사용하고
     여러 프로세스가 동시에 써도(5부의 병렬 환경) 서로 덮어쓰지 않게 합니다.
@@ -98,7 +99,8 @@ def build_scene(cube_pos=(0.25, 0.0), box_pos=(0.0, 0.25), extra_cubes=None,
                                 box_x=box_pos[0], box_y=box_pos[1],
                                 extra_cubes=extra_xml, extra_qpos=extra_qpos,
                                 light_pos=fmt(light_pos), light_diffuse=fmt(light_diffuse),
-                                floor_rgba=fmt(floor_rgba), top_cam_pos=fmt(top_cam_pos))
+                                floor_rgba=fmt(floor_rgba), top_cam_pos=fmt(top_cam_pos),
+                                cube_rgba=fmt(cube_rgba))
     tag = hashlib.md5(xml.encode("utf-8")).hexdigest()[:8]
     path = os.path.join(robot_dir, f"physicalai_scene_{tag}.xml")
     if not os.path.exists(path):
