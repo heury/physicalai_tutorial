@@ -1,0 +1,11 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "ch05",
+  "steps": [
+    {
+      "file": "ch05/arm_reach_env.py",
+      "description": "`gym.Env`는 **강화학습 환경을 만들 때 사용하는 기본 클래스**입니다. 여기서 `gym`은 `import gymnasium as gym`으로 가져온 Gymnasium 라이브러리입니다.\n\n```python\nclass ArmReachEnv(gym.Env):\n```\n\n이 코드는 “`gym.Env`의 기본 구조를 물려받아, 로봇팔 전용 환경을 만들겠다”는 뜻입니다. 이런 방식을 **상속**이라고 합니다.\n\n강화학습 환경은 보통 다음과 같은 공통 규칙을 따릅니다.\n\n| 구성 요소 | 역할 | 이 코드의 예 |\n|---|---|---|\n| `observation_space` | 모델이 받을 상태 정보의 형태 | 숫자 14개 |\n| `action_space` | 모델이 선택할 행동의 범위 | 관절 5개의 조절값 |\n| `reset()` | 새 연습 시작 | 팔 초기화, 블록 배치 |\n| `step(action)` | 행동 실행 후 결과 반환 | 팔 이동, 보상·종료 여부 계산 |\n\n학습 프로그램은 이 규칙에 맞춰 환경과 상호작용합니다.\n\n```python\nobs, info = env.reset()  # 연습 시작\n\n# 실제 학습에서는 모델이 obs를 보고 행동을 선택합니다.\naction = env.action_space.sample()  # 여기서는 무작위 행동\nobs, reward, terminated, truncated, info = env.step(action)\n```\n\n즉, `gym.Env`는 **학습 모델과 시뮬레이션이 정해진 방식으로 대화하게 해 주는 공통 틀**입니다. 팔을 움직이고 보상을 계산하는 구체적인 내용은 `ArmReachEnv`에서 직접 구현합니다.",
+      "line": 28
+    }
+  ]
+}
